@@ -4,8 +4,11 @@ import { useState, useEffect } from 'react';
 
 // Grundgerüst für eine Karte
 interface Card {
-  code: string;
-  image: string;
+  code: string; // id der jeweiligen Karte
+  image: string; // Bild der jeweiligen Karte
+  suit: string; // Symbol der jeweiligen Karte zum Beispiel Herz
+  value: string; // Wert der jeweiligen Karte zum Beispiel 7 oder Queen
+
 }
 
 export default function CardGame() {
@@ -15,6 +18,7 @@ export default function CardGame() {
   const [ablageKarte, setAblageKarte] = useState<Card | null>(null) // speichert die Ablage Karte, Card ohne[] weil es nur eine AblageKarte gibt
   const [loading, setLoading] = useState<boolean>(false); // speichert ob gerade spiel Button gedrückt wurde
   const [gameStarted, setGameStarted]= useState<boolean>(false); // speichert ob gerade Spiel gestartet wurde
+  const [aktuellerSpieler, setAktuellerSpieler] = useState<"player1" | "player2">("player1") // speichert welcher Spieler gerade drann ist am Anfang ist Spieler 1 dran
   
 
   // Neues Deck erstellen
@@ -45,6 +49,35 @@ export default function CardGame() {
     setLoading(false); // "loading" wird zu false
   }
 
+  function karteSpielen(player: "player1" | "player2", card: Card) { // Player entweder Player 1 oder Player 2 je nach dem wird ja beim Aufruf bestummen und die Karte, die jeweils die Attribute vom interface Card hat
+    if(!ablageKarte) return
+
+    if (player !== aktuellerSpieler) { // Wenn Spieler nicht gleich aktueller Spieler ist dann:
+      alert("Du bist gerade nicht an der Reihe") // alert dass man nicht dran ist
+      return // Funktion wird beendet
+    }
+
+    const gleichesSymbol = card.suit === ablageKarte.suit // Prüfen ob Karte das gleiche Symbol hat wie auf dem Stapel die Karte
+    const gleicherWert = card.value === ablageKarte.value // Prüfen ob Karte gleichen Wert hat wie auf dem Stapel die Karte
+
+    if (gleichesSymbol || gleicherWert) { // Wenn "gleichesSymbol" oder "gleicherWert" true dann:
+      setAblageKarte(card) // Karte wird zu "AblageKarte" hinzugefügt
+    
+      if (player === "player1"){
+        setPlayer1Cards(prev => prev.filter(c => c.code !== card.code)) // c steht für alle Karten also ich enferne von allen Karten, die eine Karte, die du gerade gespielt hast
+      }
+      else {
+        setPlayer2Cards(prev => prev.filter(c => c.code !== card.code)) // wir entfernen auch hier die von allen id's von den Karten, die id von der Karte, die gesetzt wurde einfach wenn player2 das gemacht hat
+      }
+
+      setAktuellerSpieler(player === "player1" ? "player2" : "player1") // wenn player gleich player 1 ist wird player 2 aktueller spieler, wenn nicht dann player1
+    }
+
+    else {
+      alert('Karte passt nicht')
+    } 
+  }
+
   return (
     <div className="flex min-h-screen bg-black text-white p-6"> {/*p-6 innenabstand 6 also von aussen nach innen 6 abstand*, min-h-screen mindest höhe immer 100% des bildschirm, also egal wie wenig inhalt container immer 100% höhe des Bildschirms/}
 
@@ -53,7 +86,12 @@ export default function CardGame() {
         <div className="flex flex-col items-center gap-4 w-32">
           <h2 className="text-xl font-semibold mb-4">👤 Spieler 1</h2>
           {player1Cards.map((card) => (
-            <img key={card.code} src={card.image} alt={card.code} className="w-20 h-auto" />
+            <img 
+              key={card.code} 
+              src={card.image} 
+              alt={card.code} 
+              className="w-20 h-auto"
+              onClick={() => karteSpielen("player1", card)} /> // beim Klick karteSpielen Funktion, dabei 2 Argumente mitgeben nämlich das es player1 ist und die Karte
           ))}
         </div>
       )}
@@ -75,15 +113,24 @@ export default function CardGame() {
         )}
         {/* Nach Spielstart: Weißer Tisch */}
         {gameStarted && (
+          <div className="flex flex-col items-center justify-center">
+          {/* Anzeige aktueller Spieler */}
+          <div className="mb-4 text-white font-bold text-lg">
+            {aktuellerSpieler === 'player1' ? '👤 Spieler 1 ist dran' : '👤 Spieler 2 ist dran'}
+          </div>
+        
+          {/* Der weiße Tisch */}
           <div className="flex items-center justify-between w-[300px] h-[250px] bg-white rounded-xl shadow-lg p-4">
+            {/* Ablagekarte */}
             {ablageKarte && (
-              <img src={ablageKarte.image} alt={ablageKarte.code} className="w-24 h-auto"/>
+              <img src={ablageKarte.image} alt={ablageKarte.code} className="w-24 h-auto" />
             )}
-            {/* Dummy für Nachziehstapel */}
-            <div className="w-24 h-34 bg-gray-300 rounded-lg flex items-center justify-center">
+            {/* Dummy Deck */}
+            <div className="w-24 h-36 bg-gray-300 rounded-lg flex items-center justify-center">
               <p className="text-black font-bold">Deck</p>
             </div>
           </div>
+        </div>
         )}
       </div>
 
@@ -92,7 +139,12 @@ export default function CardGame() {
         <div className="flex flex-col items-center gap-4 w-32">
           <h2 className="text-xl font-semibold mb-4">👤 Spieler 2</h2>
           {player2Cards.map((card) => (
-            <img key={card.code} src={card.image} alt={card.code} className="w-20 h-auto" />
+            <img 
+              key={card.code} 
+              src={card.image} 
+              alt={card.code} 
+              onClick={() => karteSpielen("player2", card)} // gleiches wie bei player1 hier wird einfach player2 angegeben
+              className="w-20 h-auto" />
           ))}
         </div>
       )}
