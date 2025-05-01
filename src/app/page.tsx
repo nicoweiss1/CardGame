@@ -21,6 +21,9 @@ export default function CardGame() {
   const [aktuellerSpieler, setAktuellerSpieler] = useState<"player1" | "player2">("player1"); // speichert welcher Spieler gerade drann ist am Anfang ist Spieler 1 dran
   const [bereitsGezogen, setBereitsGezogen] = useState<boolean>(false) // speichert ob Karte gezogen wurde
   const [mussZweiZiehen, setMussZweiZiehen] = useState<boolean>(false) // speichert ob spieler Zwei Karten ziehen muss
+  const [spielerMussAussetzen, setSpielerMussAussetzen] = useState<string | null>(null);
+  const [gewuenschtesSymbol, setGewuenschtesSymbol] = useState<string | null>(null);
+
 
   // Neues Deck erstellen
   useEffect(() => {
@@ -50,40 +53,90 @@ export default function CardGame() {
     setLoading(false); // "loading" wird zu false
   }
 
-  function karteSpielen(player: "player1" | "player2", card: Card) { // Player entweder Player 1 oder Player 2 je nach dem wird ja beim Aufruf bestummen und die Karte, die jeweils die Attribute vom interface Card hat
-    if(!ablageKarte) return
-
-    if (player !== aktuellerSpieler) { // Wenn Spieler nicht gleich aktueller Spieler ist dann:
-      alert("Du bist gerade nicht an der Reihe") // alert dass man nicht dran ist
-      return // Funktion wird beendet
+  function karteSpielen(player: "player1" | "player2", card: Card) {
+    if (!ablageKarte) return;
+  
+    if (player !== aktuellerSpieler) {
+      alert("Du bist gerade nicht an der Reihe");
+      return;
     }
 
-    const gleichesSymbol = card.suit === ablageKarte.suit // Prüfen ob Karte das gleiche Symbol hat wie auf dem Stapel die Karte
-    const gleicherWert = card.value === ablageKarte.value // Prüfen ob Karte gleichen Wert hat wie auf dem Stapel die Karte
-
-    if (gleichesSymbol || gleicherWert) { // Wenn "gleichesSymbol" oder "gleicherWert" true dann:
-      setAblageKarte(card) // Karte wird zu "AblageKarte" hinzugefügt
-
-      
-    
-      if (player === "player1"){
-        setPlayer1Cards(prev => prev.filter(c => c.code !== card.code)) // c steht für alle Karten also ich enferne von allen Karten, die eine Karte, die du gerade gespielt hast
-      }
-      else {
-        setPlayer2Cards(prev => prev.filter(c => c.code !== card.code)) // wir entfernen auch hier die von allen id's von den Karten, die id von der Karte, die gesetzt wurde einfach wenn player2 das gemacht hat
-      }
-
-
-
-      setAktuellerSpieler(player === "player1" ? "player2" : "player1") // wenn player gleich player 1 ist wird player 2 aktueller spieler, wenn nicht dann player1
-      setBereitsGezogen(false) // "bereitsGezogen" wird auf falsch gesetzt
-
+    if (
+      spielerMussAussetzen &&
+      spielerMussAussetzen.includes(player === "player1" ? "Spieler 1" : "Spieler 2")
+    ) {
+      alert("Du musst aussetzen und darfst diese Runde nicht spielen.");
+      return;
     }
-
-    else {
-      alert('Karte passt nicht')
-    } 
+  
+    const istBube = card.value === "JACK";
+    let darfLegen = false;
+  
+    // Wenn ein Wunsch aktiv ist (nach Bube)
+    if (gewuenschtesSymbol) {
+      darfLegen = card.suit === gewuenschtesSymbol || card.value === "JACK";
+    } else {
+      const gleichesSymbol = card.suit === ablageKarte.suit;
+      const gleicherWert = card.value === ablageKarte.value;
+      darfLegen = gleichesSymbol || gleicherWert || card.value === "JACK";
+    }
+  
+    if (!darfLegen) {
+      alert("Karte passt nicht zu Symbol oder Wert.");
+      return;
+    }
+  
+    // Ablage aktualisieren
+    setAblageKarte(card);
+  
+    // Karte aus Hand entfernen
+    if (player === "player1") {
+      setPlayer1Cards(prev => prev.filter(c => c.code !== card.code));
+    } else {
+      setPlayer2Cards(prev => prev.filter(c => c.code !== card.code));
+    }
+  
+    // 🧠 Hier wird die Aussetz-Meldung entfernt, wenn noch vorhanden
+    if (spielerMussAussetzen) {
+      setSpielerMussAussetzen(null);
+    }
+  
+    // Sonderfall Bube → Symbolwahl anzeigen, kein Spielerwechsel
+    if (istBube) {
+      setGewuenschtesSymbol(null); // Menü aktivieren
+      return;
+    }
+  
+    if (gewuenschtesSymbol) {
+      setGewuenschtesSymbol(null);
+    }
+  
+    // Spezialregel: 7 → 2 Karten ziehen
+    if (card.value === "7") {
+      setMussZweiZiehen(true);
+    } else {
+      setMussZweiZiehen(false);
+    }
+  
+   // Spezialregel: 8 → Nächster Spieler muss aussetzen, aber KEIN Spielerwechsel
+    if (card.value === "8") {
+      const naechsterSpieler = player === "player1" ? "player2" : "player1";
+      setSpielerMussAussetzen(
+        naechsterSpieler === "player1"
+          ? "👤 Spieler 1 muss aussetzen!"
+          : "👤 Spieler 2 muss aussetzen!"
+      );
+      setBereitsGezogen(false);
+      return; // 👉 Kein Spielerwechsel!
+    }
+  
+    // Spielerwechsel
+    setAktuellerSpieler(player === "player1" ? "player2" : "player1");
+    setBereitsGezogen(false);
   }
+  
+  
+  
 
   async function karteZiehen(player: "player1" | "player2") {
     if (!deckId) return
@@ -95,37 +148,59 @@ export default function CardGame() {
       alert("Du hast schon eine Karte gezogen")
       return
     }
+    if (
+      spielerMussAussetzen &&
+      spielerMussAussetzen.includes(player === "player1" ? "Spieler 1" : "Spieler 2")
+    ) {
+      alert("Du musst aussetzen und darfst diese Runde nicht ziehen.");
+      return;
+    }
 
-    const res = await fetch(`https://deckofcardsapi.com/api/deck/${deckId}/draw/?count=1`) // Bringen genau 1 Karte mithilfe der deckId der API zu "res"
+    const ziehAnzahl = mussZweiZiehen ? 2 : 1
+
+    const res = await fetch(`https://deckofcardsapi.com/api/deck/${deckId}/draw/?count=${ziehAnzahl}`) // Bringen genau 1 Karte mithilfe der deckId der API zu "res"
     const data = await res.json() // API antwort wird in ein JSON umgewandelt
 
-    if(data.cards.length === 1) { // Wenn in dem JSON genau 1 Karte ist:
+    if(data.cards.length >= 1) { // Wenn in dem JSON genau 1 Karte ist:
       if (player === "player1") { // Wenn player gleich player1 ist
         setPlayer1Cards(prev => [...prev, ...data.cards]) // Karte wird zu "player1Cards" hinzugefügt
       }
       else { // hier einfach bei player2
         setPlayer2Cards(prev => [...prev, ...data.cards])
       }
-      setBereitsGezogen(true);
+
+
+      if (mussZweiZiehen) {
+        setMussZweiZiehen(false); // Spezialregel beenden
+        setBereitsGezogen(true); // Jetzt darf "Kann nicht" gedrückt werden
+      } else {
+        setBereitsGezogen(true);
+      }
     }
 
   }
 
   function handleKannNicht() {
-    setAktuellerSpieler(aktuellerSpieler === "player1" ? "player2" : "player1")
-    setBereitsGezogen(false)
+    if (spielerMussAussetzen) {
+      setSpielerMussAussetzen(null); // Meldung verschwindet bei "Kann nicht"
+    }
+  
+    const naechsterSpieler = aktuellerSpieler === "player1" ? "player2" : "player1";
+    setAktuellerSpieler(naechsterSpieler);
+    setBereitsGezogen(false);
   }
+  
 
 
 
 
   return (
-    <div className="flex min-h-screen bg-black text-white p-6"> {/*p-6 innenabstand 6 also von aussen nach innen 6 abstand*, min-h-screen mindest höhe immer 100% des bildschirm, also egal wie wenig inhalt container immer 100% höhe des Bildschirms*/}
-
+    <div className="flex min-h-screen bg-black text-white p-6 justify-center gap-8">
+      {/* Spieler 1 (links) */}
       {gameStarted && (
-        <div className="flex gap-4 w-40 items-start justify-start">
+        <div className="flex gap-4 flex-shrink-0">
           {Array.from({ length: Math.ceil(player1Cards.length / 5) }).map((_, spaltenIndex) => (
-            <div key={spaltenIndex} className="flex flex-col gap-12">
+            <div key={spaltenIndex} className="flex flex-col gap-12 w-20">
               {player1Cards
                 .slice(spaltenIndex * 5, spaltenIndex * 5 + 5)
                 .map((card) => (
@@ -141,10 +216,9 @@ export default function CardGame() {
           ))}
         </div>
       )}
-
+  
       {/* Spielfeld Mitte */}
-      <div className="flex-1 flex flex-col items-center justify-center"> {/*flex-1 container dehnt sich so weit wie möglich aus, weil wir haben bei Spieler 1 und 2 eine Fest Breite w-32*/}
-        {/* Vor Spielstart: Button */}
+      <div className="flex-1 flex flex-col items-center justify-center">
         {!gameStarted && (
           <>
             <h1 className="text-2xl font-bold mb-8">🎴 Zwei-Spieler-Kartenspiel – Mau Mau Basis - Laptop Layout</h1>
@@ -157,65 +231,96 @@ export default function CardGame() {
             </button>
           </>
         )}
-        {/* Nach Spielstart: Weißer Tisch */}
+  
         {gameStarted && (
           <div className="flex flex-col items-center justify-center">
-          {/* Anzeige aktueller Spieler */}
-          <div className="mb-4 text-white font-bold text-lg">
-            {aktuellerSpieler === 'player1' ? '👤 Spieler 1 ist dran (Karte klicken)' : '👤 Spieler 2 ist dran (Karte klicken)'}
-          </div>
-        
-          {/* Der weiße Tisch */}
-          <div className="flex items-center justify-between w-[300px] h-[250px] bg-white rounded-xl shadow-lg p-4">
-            {/* Ablagekarte */}
-            {ablageKarte && (
-              <img src={ablageKarte.image} alt={ablageKarte.code} className="w-24 h-auto" />
-            )}
-            {/* Dummy Deck */}
-            <div 
-              onClick={() => karteZiehen(aktuellerSpieler)} // Beim Klicken des Ablagestapel wird Funktion "karteziehen" aufgerufen mit Argument aktueller Spieler
-              className="w-24 h-36 bg-gray-300 rounded-lg flex items-center justify-center">
-              <p className="text-black font-bold">Deck</p>
+            {/* Aktueller Spieler */}
+            <div className="mb-4 text-white font-bold text-lg text-center">
+              {aktuellerSpieler === 'player1' ? '👤 Spieler 1 ist dran' : '👤 Spieler 2 ist dran'}
+              {spielerMussAussetzen && (
+                <div className="text-red-400 text-sm mt-1">{spielerMussAussetzen}</div>
+              )}
             </div>
+  
+            {/* Der Tisch */}
+            <div className="flex items-center justify-between w-[300px] h-[250px] bg-white rounded-xl shadow-lg p-4">
+              {ablageKarte && (
+                <img src={ablageKarte.image} alt={ablageKarte.code} className="w-24 h-auto" />
+              )}
+              <div 
+                onClick={() => karteZiehen(aktuellerSpieler)}
+                className="w-24 h-36 bg-gray-300 rounded-lg flex items-center justify-center cursor-pointer"
+              >
+                <p className="text-black font-bold">Deck</p>
+              </div>
+            </div>
+  
+            {/* Kann nicht-Button */}
+            <button
+              onClick={handleKannNicht}
+              disabled={!bereitsGezogen}
+              className={`mt-4 text-white font-bold py-2 px-4 rounded ${
+                bereitsGezogen ? "bg-red-500 hover:bg-red-600" : "bg-gray-400"
+              }`}
+            >
+              Kann nicht
+            </button>
+  
+            {/* Pflichtziehen Hinweis */}
+            {mussZweiZiehen && (
+              <div className="mt-2 text-red-500 font-semibold">
+                {aktuellerSpieler === 'player1' ? 'Spieler 1 muss 2 Karten ziehen!' : 'Spieler 2 muss 2 Karten ziehen!'}
+              </div>
+            )}
+  
+            {/* 🃏 Symbolauswahl nach Bube */}
+            {ablageKarte?.value === "JACK" && gewuenschtesSymbol === null && (
+              <div className="mt-6 text-black bg-green-300 p-4 rounded shadow text-center">
+                <p className="mb-2 font-semibold">🃏 Du hast einen Buben gelegt! Wähle ein Symbol:</p>
+                <div className="flex gap-4 justify-center">
+                  {["HEARTS", "DIAMONDS", "CLUBS", "SPADES"].map((symbol) => (
+                    <button
+                      key={symbol}
+                      onClick={() => {
+                        setGewuenschtesSymbol(symbol);
+                        setBereitsGezogen(false); // Spieler darf direkt danach legen
+                      }}
+                      className="bg-white text-black px-3 py-1 rounded hover:bg-gray-200"
+                    >
+                      {symbol === "HEARTS" && "♥ Herz"}
+                      {symbol === "DIAMONDS" && "♦ Karo"}
+                      {symbol === "CLUBS" && "♣ Kreuz"}
+                      {symbol === "SPADES" && "♠ Pik"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-
-          <button
-            onClick={handleKannNicht}
-            disabled={!bereitsGezogen} // disabled wenn bereitsgezogen falsch ist
-            className={`mt-4 text-white font-bold py-2 px-4 rounded ${
-              bereitsGezogen ?
-              "bg-red-500 hover:bg-red-600" :
-              "bg-gray-400"
-            }`}
-          >
-            Kann nicht
-          </button>
-        </div>
         )}
       </div>
-
-      {/* Spieler 2 rechts */}
+  
+      {/* Spieler 2 (rechts) */}
       {gameStarted && (
-        <div className="flex gap-4 w-40 items-start justify-end">
-          {Array.from({ length: Math.ceil(player2Cards.length / 5) }).map((_, spaltenIndex) => ( // *Array.from -> erzeugt ein Array, Math.ceil rundet immer auf heisst z.B 7 Karten durch 5 ergibt 1.4 rundet auf 2 auf, gehen mit map durch _ brauchen das Element selber nicht nur den index mit "spaltenindex" */}
-            <div key={spaltenIndex} className="flex flex-col gap-12">
+        <div className="flex gap-4 flex-shrink-0">
+          {Array.from({ length: Math.ceil(player2Cards.length / 5) }).map((_, spaltenIndex) => (
+            <div key={spaltenIndex} className="flex flex-col gap-12 w-20">
               {player2Cards
-              .slice(spaltenIndex * 5, spaltenIndex * 5 + 5) // .slice bedeutet schneide ein Stück des Array von start, ende
-              .map((card) => (
-                <img 
-                  key={card.code}
-                  src={card.image}
-                  alt={card.code} 
-                  onClick={() => karteSpielen("player2", card)}
-                  className="w-20 h-auto cursor-pointer"
+                .slice(spaltenIndex * 5, spaltenIndex * 5 + 5)
+                .map((card) => (
+                  <img
+                    key={card.code}
+                    src={card.image}
+                    alt={card.code}
+                    onClick={() => karteSpielen("player2", card)}
+                    className="w-20 h-auto cursor-pointer"
                   />
-              ))
-              }
+                ))}
             </div>
-          ))} 
-         
+          ))}
         </div>
       )}
     </div>
   );
+  
 }
